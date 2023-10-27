@@ -1,0 +1,42 @@
+name: Check Version Update
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check_version_update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Get Current Version
+        id: current_version
+        run: |
+          raw_content=$(curl -s "https://api.github.com/repos/${{ github.repository }}/contents/.github/workflows/publish.yml?ref=${{ github.head_ref }}")
+          content=$(echo "$raw_content" | jq -r '.content' | base64 --decode)
+          version=$(echo "$content" | grep -oP 'version: \K\d+\.\d+\.\d+')
+          echo "::set-output name=version::$version"
+        shell: bash
+
+      - name: Get Previous Version
+        id: previous_version
+        run: |
+          raw_content=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/contents/.github/workflows/publish.yml?ref=main")
+          content=$(echo "$raw_content" | jq -r '.content' | base64 --decode)
+          version=$(echo "$content" | grep -oP 'version: \K\d+\.\d+\.\d+')
+          echo "::set-output name=prev_version::$version"
+        shell: bash
+
+      - name: Compare Versions
+        id: version_comparison
+        run: |
+          if [ "${{ steps.current_version.outputs.version }}" != "${{ steps.previous_version.outputs.prev_version }}" ]; then
+            echo "Version Updated"
+          else
+            echo "Version not updated"
+            exit 1
+          fi
+        shell: bash
